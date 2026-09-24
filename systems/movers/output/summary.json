@@ -1,0 +1,325 @@
+{
+  "generatedAt": "2026-09-24T15:39:24.874Z",
+  "universe": 777,
+  "completedSymbols": 777,
+  "errors": [],
+  "days": 730,
+  "feeBps": 5.5,
+  "slippageBps": 10,
+  "featureRows": 292306,
+  "selectedRule": {
+    "rule": {
+      "lookback": 20,
+      "maxCompression": 0.2,
+      "minTurnover": 1.5,
+      "minTrend": 0.03,
+      "oi": false
+    },
+    "mean": 0.007271124285047037,
+    "trades": 819
+  },
+  "holdout": {
+    "trades": 1260,
+    "mean": -0.00019684363537525513,
+    "median": -0.009707048224145531,
+    "winRate": 0.41349206349206347,
+    "profitFactor": 0.9920742413441569
+  },
+  "baselineHoldout": {
+    "trades": 0,
+    "mean": null,
+    "median": null,
+    "winRate": null,
+    "profitFactor": null
+  },
+  "watchlist": [
+    {
+      "symbol": "SMHUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 29.568244742420323,
+      "compression10": 0.07416321504533752
+    },
+    {
+      "symbol": "KERNELUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 15.982091657195099,
+      "compression10": 0.1820871436256053
+    },
+    {
+      "symbol": "GMESTOCKUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 9.541825664391553,
+      "compression10": 0.1136254212806933
+    },
+    {
+      "symbol": "CLSKUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 8.87364091673833,
+      "compression10": 0.1717990275526744
+    },
+    {
+      "symbol": "LYNUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 8.08691018751752,
+      "compression10": 0.14432668329177067
+    },
+    {
+      "symbol": "OUSTUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 8.086170404421049,
+      "compression10": 0.13275702377276932
+    },
+    {
+      "symbol": "MASKUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 7.1087477921625535,
+      "compression10": 0.16946676406135874
+    },
+    {
+      "symbol": "QCOMUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 5.8113572990771,
+      "compression10": 0.12689105195262118
+    },
+    {
+      "symbol": "1000000MOGUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 5.726843354501101,
+      "compression10": 0.1807486631016042
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 5.357258849596936,
+      "compression10": 0.19795827785175324
+    },
+    {
+      "symbol": "AMDSTOCKUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 5.029649340194753,
+      "compression10": 0.1777837826602091
+    },
+    {
+      "symbol": "TQQQUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 4.655615124038463,
+      "compression10": 0.09746588693957126
+    },
+    {
+      "symbol": "DBRUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.9076169727330954,
+      "compression10": 0.10865051903114198
+    },
+    {
+      "symbol": "BITOUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.675628393057209,
+      "compression10": 0.08739978224289824
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.641053832862294,
+      "compression10": 0.16717791411042926
+    },
+    {
+      "symbol": "SOXXUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.5646858672863453,
+      "compression10": 0.08650428179027325
+    },
+    {
+      "symbol": "CROUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.5488062061925123,
+      "compression10": 0.11614678899082564
+    },
+    {
+      "symbol": "MOCAUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.417921417206458,
+      "compression10": 0.19949826782941105
+    },
+    {
+      "symbol": "INTCUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.169401944635883,
+      "compression10": 0.19053654414871146
+    },
+    {
+      "symbol": "TNSRUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.1233706037979023,
+      "compression10": 0.14303253529772886
+    },
+    {
+      "symbol": "NETUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.1104572212728905,
+      "compression10": 0.11418582407071476
+    },
+    {
+      "symbol": "KSTRUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.018620497867066,
+      "compression10": 0.11369863013698644
+    },
+    {
+      "symbol": "MEWUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 3.016082370879224,
+      "compression10": 0.15120643431635372
+    },
+    {
+      "symbol": "LTCUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.781516229663413,
+      "compression10": 0.183995210536819
+    },
+    {
+      "symbol": "GRAMUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.728533951834395,
+      "compression10": 0.08956386292834884
+    },
+    {
+      "symbol": "AALUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.687269307175585,
+      "compression10": 0.058637083993660966
+    },
+    {
+      "symbol": "ARMUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.6001682745433987,
+      "compression10": 0.1804221038056475
+    },
+    {
+      "symbol": "NXPCUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.4560904133989006,
+      "compression10": 0.16221662468513842
+    },
+    {
+      "symbol": "BABAUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.3645318889195823,
+      "compression10": 0.0822405395279131
+    },
+    {
+      "symbol": "XDCUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.3522842654605,
+      "compression10": 0.09872372372372373
+    },
+    {
+      "symbol": "RPLUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.2465833803138877,
+      "compression10": 0.19321817018554066
+    },
+    {
+      "symbol": "BTCUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.190433881468531,
+      "compression10": 0.09390066150913778
+    },
+    {
+      "symbol": "METAUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 2.0567410666957673,
+      "compression10": 0.09076633165829162
+    },
+    {
+      "symbol": "CARVUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.9206700897189144,
+      "compression10": 0.1722054380664655
+    },
+    {
+      "symbol": "SOLUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.916591626552083,
+      "compression10": 0.1945866861741039
+    },
+    {
+      "symbol": "ERAUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.8613659669085318,
+      "compression10": 0.1869210818821787
+    },
+    {
+      "symbol": "XAIUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.843728468405199,
+      "compression10": 0.17596631072341684
+    },
+    {
+      "symbol": "XLMUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.7921159369999509,
+      "compression10": 0.1876815804764671
+    },
+    {
+      "symbol": "BNBUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.7679373406071945,
+      "compression10": 0.10500142085819841
+    },
+    {
+      "symbol": "RKLBUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.7393367709560974,
+      "compression10": 0.14396565956744278
+    },
+    {
+      "symbol": "KAIAUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.7353470199324652,
+      "compression10": 0.16384180790960445
+    },
+    {
+      "symbol": "PIXELUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.7015505499480312,
+      "compression10": 0.18788958147818335
+    },
+    {
+      "symbol": "XRPUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.6939038993983402,
+      "compression10": 0.19682131963397032
+    },
+    {
+      "symbol": "ISRGUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.6814263177609206,
+      "compression10": 0.09976849914930419
+    },
+    {
+      "symbol": "MEMEUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.6597557586525729,
+      "compression10": 0.18409872547036188
+    },
+    {
+      "symbol": "ZHONGJIUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.5514245252365384,
+      "compression10": 0.17472257391822432
+    },
+    {
+      "symbol": "ETHUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.5278742028270687,
+      "compression10": 0.13366864030899173
+    },
+    {
+      "symbol": "XLKUSDT",
+      "signalTime": "2026-09-21",
+      "turnoverMultiple10": 1.5201744173959755,
+      "compression10": 0.0435163871533486
+    }
+  ]
+}
