@@ -68,6 +68,7 @@
 - Produces: `CandidateStatus`, `OutcomeClass`, `Regime`, `BreakoutSignal`, `LiquiditySnapshot`, `CandidateOutcome`, `FeatureSnapshot`, and `TimelineSnapshot` frozen types.
 - Produces: `Settings.as_manifest() -> dict[str, object]` with every research parameter.
 - Produces: `initialize(engine: Engine) -> SchemaProvenance` and `read_schema_provenance(engine: Engine) -> SchemaProvenance`.
+- Produces: append-only `research_run_snapshots` with started/terminal lifecycle phases and every required provenance field.
 
 `BreakoutSignal` carries symbol, interval minutes, breakout open time, decision time, structure lookback, breakout level, breakout close, status, optional duplicate key, and optional rejection reason/window. `LiquiditySnapshot` carries decision time, 24-hour volume/turnover, expected/observed bars, eligibility, and reason. `CandidateOutcome` carries the 12-candle bounds/count, classification, threshold/reached flag, MFE, MAE, maximum extension, final position, and giveback. `FeatureSnapshot` carries decision time, regime, feature mapping, seven-horizon timeline mapping, source maximum timestamps, and input fingerprint.
 
@@ -86,6 +87,9 @@ def test_manifest_is_stable_and_contains_regime_and_support_values():
 
 def test_migration_checksum_drift_is_rejected():
     assert applying_changed_recorded_migration_raises_checksum_error()
+
+def test_research_run_snapshots_reject_update_and_delete():
+    assert immutable_snapshot_mutations_raise_integrity_error()
 ```
 
 - [ ] **Step 2: Run the tests and confirm the missing interfaces fail**
@@ -360,6 +364,7 @@ git commit -m "feat: freeze point-in-time feature snapshots"
 **Interfaces:**
 - Consumes: Tasks 1-5 domain values and migrated PostgreSQL schema.
 - Produces: `ResearchRepository.create_run(manifest, bounds) -> int`.
+- Produces: `ResearchRepository.append_run_snapshot(run_id, phase, provenance, counts) -> int` and rejects replacement of an existing phase.
 - Produces: `upsert_candidates`, `upsert_feature_snapshot`, `upsert_outcome`, `load_analysis_population`, and `population_funnel`.
 - Produces orchestrator stages: `collect`, `detect_candidates`, `snapshot_features`, `label_outcomes`, `analyse`, each restartable by run ID.
 
@@ -380,6 +385,8 @@ def test_analysis_population_excludes_ineligible_pending_and_duplicates(db):
 ```
 
 Also test immutable liquidity snapshots, manifest persistence, null OI/funding round trips, and explicit incomplete-liquidity reasons.
+
+Test that a started snapshot survives a simulated failed attempt and a terminal snapshot records final symbol-universe and candidate counts without mutating the started row.
 
 - [ ] **Step 2: Run integration tests and confirm failure**
 
@@ -555,6 +562,8 @@ def test_successful_preflight_writes_markdown_and_json():
 ```
 
 Also cover Bybit reachability, UTC clock sanity, 50 GB minimum free disk, database connectivity, required tables, configured 12-month target bounds, absence of conflicting active collection jobs, leakage invariant evidence, configuration hash, and project-scoped code revision/dirty-state provenance. Historical coverage is a campaign-stage audit and is not falsely claimed by preflight before collection.
+
+Assert that the campaign gate creates an immutable started snapshot before stage execution and always appends either a completed or failed terminal snapshot with Git commit, code state/fingerprint, configuration hash, schema checksums, database identity, campaign bounds, universe/candidate counts, and execution timestamp.
 
 - [ ] **Step 2: Run preflight tests and confirm failure**
 

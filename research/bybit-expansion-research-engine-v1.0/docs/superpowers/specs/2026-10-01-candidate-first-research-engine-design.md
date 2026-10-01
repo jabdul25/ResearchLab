@@ -292,6 +292,7 @@ Schema changes are versioned and recorded in `schema_migrations`. They do not de
 ### 12.2 Research tables
 
 - `research_runs`: immutable configuration manifest, code/schema version, campaign bounds, status, and summary.
+- `research_run_snapshots`: append-only provenance snapshots written at campaign-attempt start and terminal completion/failure. Every row contains run ID, snapshot phase, Git commit, dirty/code revision state and project fingerprint, configuration hash, schema version and migration checksums, database identity, campaign date range, symbol-universe count, candidate counts by status/outcome, and execution timestamp. Update and delete operations are rejected. The start snapshot preserves crashed attempts; the terminal snapshot contains final counts as of completion or failure.
 - `breakout_candidates`: identity, symbol, timeframe, breakout candle and decision timestamps, structure lookback, breakout level/close, candidate status, duplicate reference, duplicate reason/window, 24-hour liquidity fields, observed liquidity bars, eligibility, regime, and run ID.
 - `candidate_features`: candidate ID, feature timestamp, version, feature JSON, timeline JSON, input maximum timestamps for candles/OI/funding, and deterministic input fingerprint.
 - `candidate_outcomes`: candidate ID, label-window bounds, classification, threshold, threshold reached, MFE, MAE, maximum extension, final position, giveback, observed candles, and label version.
@@ -306,6 +307,7 @@ Database constraints enforce:
 - liquidity values and eligibility reasons are present together;
 - outcomes use only allowed classifications;
 - one candidate definition per symbol, timeframe, breakout candle, lookback, and run.
+- research-run snapshots are insert-only and unique by run and lifecycle phase.
 
 ## 13. Evidence and Walk-Forward Analysis
 

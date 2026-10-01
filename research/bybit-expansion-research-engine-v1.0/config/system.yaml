@@ -6,6 +6,32 @@ market:
 filters:
   min_turnover_24h: 500000
 
+liquidity:
+  minimum_turnover_24h: 500000
+  source_interval_minutes: 15
+
+candidates:
+  structure_lookback: 20
+  outcome_window_candles: 12
+  duplicate_window_candles: 12
+  reversal_min_threshold_fraction: 0.50
+  reversal_giveback_fraction: 0.70
+
+events:
+  thresholds:
+    15: 0.08
+    60: 0.15
+    240: 0.25
+
+features:
+  ema_slope_lookback_bars: 6
+  volatility_percentile_lookback_bars: 90
+  high_volatility_percentile: 0.80
+
+analysis:
+  minimum_winners_per_split: 20
+  minimum_failures_per_split: 20
+
 timeframes:
   context:
     - 240
