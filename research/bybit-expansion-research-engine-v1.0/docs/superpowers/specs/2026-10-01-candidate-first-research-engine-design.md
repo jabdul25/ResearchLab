@@ -8,7 +8,7 @@ Scope: Bybit Linear USDT perpetual market-state research only
 
 ## 1. Purpose
 
-The engine will identify measurable, causal market conditions that distinguish successful upward expansions from comparable failed breakout attempts. It will not create entries, exits, leverage rules, position sizing, execution logic, or a live trading system.
+The engine will identify measurable, historically associated market conditions that distinguish successful upward expansions from comparable failed breakout attempts. It will not claim causation without stronger causal evidence, and it will not create entries, exits, leverage rules, position sizing, execution logic, or a live trading system.
 
 The primary unit of analysis is a point-in-time breakout candidate. Every candidate is discovered using information available at the close of its breakout candle. Its liquidity, features, and market regime are frozen at that decision time. Only its outcome label may use the following 12 candles.
 
@@ -26,7 +26,7 @@ The first research campaign will:
 - generate all point-in-time breakout signals using a configurable structure lookback;
 - preserve both admitted candidates and rejected duplicate signals;
 - apply the 500,000 USDT liquidity threshold from historical turnover at each candidate decision time;
-- snapshot causal features and market regime at the decision time;
+- snapshot point-in-time features and market regime at the decision time;
 - label the next 12 candles with mutually exclusive outcomes;
 - compare winners with matched failure cohorts by timeframe, regime, and chronological split;
 - generate five evidence reports, including population and leakage audits.
@@ -91,7 +91,7 @@ label_window  = the next 12 completed candles after the breakout candle
 
 At `decision_time`, the breakout candle is complete. Candidate detection, liquidity, features, and regime may use that candle and any earlier completed candle. They must not access any later candle or observation.
 
-The causal boundary is enforced structurally:
+The point-in-time information boundary is enforced structurally:
 
 - decision-time candidate facts are stored in `breakout_candidates`;
 - decision-time features are stored in `candidate_features`;
@@ -239,6 +239,10 @@ Open interest and funding observations are restricted to timestamps at or before
 
 Missing futures observations remain null and are counted in report coverage.
 
+### 9.7 Pre-breakout timeline
+
+For every admitted candidate, reconstruct T-72h, T-48h, T-24h, T-12h, T-6h, T-3h, and T-1h relative to the decision time. Each horizon stores the latest fully completed observations available at that horizon and summarizes trend, compression, structure, momentum, volume/turnover participation, OI, funding, and regime when sufficient history exists. A horizon snapshot must not use any observation after its own horizon timestamp. Missing or insufficient history remains explicit.
+
 ## 10. Market Regime Snapshot
 
 Regime uses only completed 4-hour candles available at the decision time. It is stored with the feature snapshot as one of:
@@ -289,7 +293,7 @@ Schema changes are versioned and recorded in `schema_migrations`. They do not de
 
 - `research_runs`: immutable configuration manifest, code/schema version, campaign bounds, status, and summary.
 - `breakout_candidates`: identity, symbol, timeframe, breakout candle and decision timestamps, structure lookback, breakout level/close, candidate status, duplicate reference, duplicate reason/window, 24-hour liquidity fields, observed liquidity bars, eligibility, regime, and run ID.
-- `candidate_features`: candidate ID, feature timestamp, version, feature JSON, input maximum timestamps for candles/OI/funding, and deterministic input fingerprint.
+- `candidate_features`: candidate ID, feature timestamp, version, feature JSON, timeline JSON, input maximum timestamps for candles/OI/funding, and deterministic input fingerprint.
 - `candidate_outcomes`: candidate ID, label-window bounds, classification, threshold, threshold reached, MFE, MAE, maximum extension, final position, giveback, observed candles, and label version.
 - `research_artifacts`: versioned JSON evidence emitted by a run.
 - `validated_market_states`: descriptive research states and their walk-forward evidence, always marked `RESEARCH_ONLY`.
@@ -336,7 +340,7 @@ Each report includes campaign bounds, code/schema version, configuration hash, p
 
 ### 14.1 Expansion Anatomy Report
 
-Shows successful expansion counts and pre-expansion feature frequencies/distributions, futures behavior, timeframe and regime breakdowns, major/large classifications, average move, MFE, and missing-data coverage.
+Shows successful expansion counts and pre-expansion feature frequencies/distributions, T-72h through T-1h timeline summaries, futures behavior, timeframe and regime breakdowns, major/large classifications, average move, MFE, and missing-data coverage.
 
 ### 14.2 Failed Breakout Report
 
@@ -355,7 +359,7 @@ Confirms and provides evidence that:
 - feature input maximum timestamps never exceeded the decision time;
 - OI/funding input timestamps never exceeded the decision time;
 - label windows started after the breakout candle and contained at most 12 candles;
-- future-mutation and future-removal causality tests passed;
+- future-mutation and future-removal leakage tests passed;
 - excluded-liquidity, incomplete, missing-data, and duplicate populations are accounted for.
 
 ### 14.5 Candidate Population Report
@@ -392,7 +396,7 @@ Shows the complete selection funnel:
 - MFE, MAE, extension, giveback, and final position are reproducible;
 - incomplete outcome windows remain pending.
 
-### 15.3 Required causality tests
+### 15.3 Required leakage tests
 
 1. **Future-candle mutation:** alter candles after the breakout. Candidate facts, liquidity, regime, and features must remain byte-for-byte equivalent; only the outcome may change.
 2. **Current/future turnover mutation:** alter current ticker turnover and turnover after the decision time. Historical liquidity values and eligibility must remain unchanged.
