@@ -45,6 +45,12 @@ campaign attempt writes an immutable started provenance snapshot and an
 immutable completed or failed terminal snapshot. Running `run_research.py`
 without a subcommand prints help and performs no work.
 
+Campaign collection is pinned to the preflight date range plus a 30-day
+feature warm-up. Candidate decisions are restricted to the recorded campaign
+bounds. Candle jobs record expected observations and gaps; any collection or
+pipeline error, coverage gap, or persisted leakage-audit violation fails the
+campaign instead of producing completed research reports.
+
 Run the deterministic analysis checks after installing dependencies:
 
 ```bash

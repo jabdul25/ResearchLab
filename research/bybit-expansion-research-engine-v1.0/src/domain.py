@@ -80,6 +80,8 @@ class TimelineSnapshot:
     as_of: datetime
     features: Mapping[str, object]
     source_max_timestamps: Mapping[str, datetime | None]
+    regime: Regime = Regime.UNKNOWN
+    liquidity: LiquiditySnapshot | None = None
 
 
 @dataclass(frozen=True)

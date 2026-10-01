@@ -31,8 +31,11 @@ def _percent(value: object) -> str:
 
 def _provenance(payload: Mapping[str, Any]) -> str:
     provenance = payload["provenance"]
+    bounds = payload.get("campaign_bounds", {})
     return "\n".join(
         [
+            f"- campaign start: {bounds.get('start', 'not supplied')}",
+            f"- campaign end: {bounds.get('end', 'not supplied')}",
             f"- run ID: {provenance['run_id']}",
             f"- git commit: {provenance['git_commit_hash']}",
             f"- configuration hash: {provenance['configuration_hash']}",
@@ -56,6 +59,7 @@ def _anatomy(payload: Mapping[str, Any]) -> str:
         f"- {name}: {coverage['available']}/{coverage['total']} candidates with data"
         for name, coverage in payload["timeline_coverage"].items()
     )
+    summary = payload.get("expansion_summary", {})
     features = "\n".join(
         f"- {row['feature']}: winner {_percent(row.get('winner_frequency'))}; "
         f"coverage {row['winner_n']}/{population['winners']}"
@@ -68,6 +72,13 @@ Successful expansion characteristics among matched, point-in-time eligible break
 - Winners: {population['winners']}
 - Eligible labeled candidates: {population['eligible_labeled_candidates']}
 - OI coverage: {oi_n}/{population['eligible_labeled_candidates']}
+- Average winner MFE: {summary.get('average_mfe')}
+- Major expansions (>=50% MFE): {summary.get('major_expansions', 0)}
+- Large expansions (25%-50% MFE): {summary.get('large_expansions', 0)}
+
+## Provenance
+
+{_provenance(payload)}
 
 ## Decision-time feature frequencies
 
@@ -82,20 +93,29 @@ Successful expansion characteristics among matched, point-in-time eligible break
 ```json
 {json.dumps(payload.get('regimes', {}), sort_keys=True, indent=2)}
 ```
+
+## Timeframe snapshots
+
+```json
+{json.dumps(payload.get('timeframes', {}), sort_keys=True, indent=2)}
+```
 """
 
 
 def _failures(payload: Mapping[str, Any]) -> str:
     population = payload["population"]
-    rows = _all_failure_rows(payload)
-    comparisons = "\n".join(
-        f"- {row['feature']}: successful {_percent(row.get('winner_frequency'))}; "
-        f"failed {_percent(row.get('failure_frequency'))}; difference {_percent(row.get('difference'))}"
-        if row["type"] == "boolean"
-        else f"- {row['feature']}: median difference {row.get('difference')}; "
-             f"coverage {row['winner_n']} winners/{row['failure_n']} failures"
-        for row in rows
-    )
+    sections = []
+    for cohort, evidence in payload["evidence"]["cohorts"].items():
+        comparisons = "\n".join(
+            f"- {row['feature']}: successful {_percent(row.get('winner_frequency'))}; "
+            f"failed {_percent(row.get('failure_frequency'))}; difference {_percent(row.get('difference'))}"
+            if row["type"] == "boolean"
+            else f"- {row['feature']}: median difference {row.get('difference')}; "
+                 f"coverage {row['winner_n']} winners/{row['failure_n']} failures"
+            for row in evidence["comparisons"]
+        )
+        sections.append(f"### {cohort}\n\n{comparisons}")
+    comparisons = "\n\n".join(sections)
     return f"""# Failed Breakout Report
 
 Matched comparison of successful expansions and similar breakout attempts that failed.
@@ -107,6 +127,10 @@ Matched comparison of successful expansions and similar breakout attempts that f
 ## Observed separation
 
 {comparisons}
+
+## Provenance
+
+{_provenance(payload)}
 
 These are historically associated conditions, not causal findings or trading rules.
 """
@@ -136,6 +160,12 @@ Features are ranked as historically associated market conditions. No causal evid
 ## Ranked matched-candidate separation
 
 {ranked}
+
+## Timeframe and regime slices
+
+```json
+{json.dumps({'timeframes': payload.get('timeframes', {}), 'regimes': payload.get('regimes', {})}, sort_keys=True, indent=2)}
+```
 
 ## Fixed walk-forward stability
 
@@ -180,12 +210,24 @@ def _population(payload: Mapping[str, Any]) -> str:
 - Rejected duplicates: {p['rejected_duplicates']}
 - Admitted + rejected duplicates: {p['admitted_candidates']} + {p['rejected_duplicates']} = {total}
 - Liquidity excluded: {p['liquidity_excluded']}
+- Complete liquidity windows: {p.get('complete_liquidity', 'not supplied')}
+- Incomplete liquidity windows: {p.get('incomplete_liquidity', 'not supplied')}
 - Pending outcomes: {p['pending_outcomes']}
 - Eligible labeled candidates: {p['eligible_labeled_candidates']}
 - Winners: {p['winners']}
 - Reversals: {p['reversals']}
 - Failed breakouts: {p['failed_breakouts']}
 - Weak expansions: {p['weak_expansions']}
+
+## Exclusions by reason, symbol, and timeframe
+
+```json
+{json.dumps(p.get('exclusions', []), sort_keys=True, indent=2)}
+```
+
+## Provenance
+
+{_provenance(payload)}
 
 This funnel exposes exclusions and prevents hidden selection of the analysis population.
 """

@@ -162,6 +162,13 @@ class DatabaseCollectionTests(unittest.TestCase):
             connection.execute(text("DELETE FROM instruments WHERE symbol IN ('HIGHUSDT','LOWUSDT','CPTESTUSDT')"))
 
     def test_universe_includes_low_current_turnover_contract(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO instruments(symbol,status,base_asset,quote_asset,turnover_24h,eligible) "
+                    "VALUES ('STALEUSDT','Trading','STALE','USDT',0,true) ON CONFLICT DO NOTHING"
+                )
+            )
         collector = DataCollector(self.engine, UniverseClient(), 500_000, 12)
 
         symbols = collector.refresh_universe()
@@ -175,6 +182,11 @@ class DatabaseCollectionTests(unittest.TestCase):
                 )
             ).all()
         self.assertEqual(eligible, [("HIGHUSDT", True), ("LOWUSDT", True)])
+        with self.engine.connect() as connection:
+            stale = connection.execute(
+                text("SELECT status,eligible FROM instruments WHERE symbol='STALEUSDT'")
+            ).one()
+        self.assertEqual(stale, ("NotTrading", False))
 
     def test_checkpoint_page_replay_is_idempotent(self):
         with self.engine.begin() as connection:

@@ -1,1 +1,1 @@
-"""Event discovery and causal feature analysis."""
+"""Candidate discovery and historically associated feature analysis."""

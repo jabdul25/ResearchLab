@@ -220,7 +220,9 @@ def _feature_values(
         "candle_size_reduction": float(1 - body_now / max(body_previous, EPS)),
         "volatility_percentile": percentile(
             current.atr14 / current.close,
-            trigger.atr14.div(trigger.close).tail(180),
+            trigger.atr14.div(trigger.close).tail(
+                settings.volatility_percentile_lookback_bars
+            ),
         ),
         "compression_score": float(
             np.mean(
@@ -300,6 +302,7 @@ def reconstruct_timeline(
     oi: pd.DataFrame | None = None,
     funding: pd.DataFrame | None = None,
     settings: Settings | None = None,
+    liquidity_candles: pd.DataFrame | None = None,
 ) -> dict[str, TimelineSnapshot]:
     settings = settings or Settings(database_url="postgresql://unused/research")
     result = {}
@@ -307,12 +310,17 @@ def reconstruct_timeline(
         as_of = _as_utc(decision_time) - pd.Timedelta(hours=hours)
         bounded = _bounded_inputs(trigger, four_h, as_of, oi, funding)
         bounded_trigger, bounded_four_h, bounded_oi, bounded_funding = bounded
+        horizon_liquidity = None
+        if liquidity_candles is not None:
+            horizon_liquidity = historical_liquidity(
+                liquidity_candles, as_of, settings.minimum_turnover_24h
+            )
         values = _feature_values(
             bounded_trigger,
             bounded_four_h,
             bounded_oi,
             bounded_funding,
-            None,
+            horizon_liquidity,
             settings,
         )
         result[f"T-{hours}h"] = TimelineSnapshot(
@@ -320,6 +328,8 @@ def reconstruct_timeline(
             as_of=as_of.to_pydatetime(),
             features=values,
             source_max_timestamps=_source_max(*bounded),
+            regime=_regime_from_prepared(bounded_four_h, settings),
+            liquidity=horizon_liquidity,
         )
     return result
 
@@ -355,6 +365,7 @@ def extract_candidate_features(
     oi: pd.DataFrame | None = None,
     funding: pd.DataFrame | None = None,
     settings: Settings | None = None,
+    liquidity_candles: pd.DataFrame | None = None,
 ) -> FeatureSnapshot:
     settings = settings or Settings(database_url="postgresql://unused/research")
     bounded = _bounded_inputs(trigger, four_h, decision_time, oi, funding)
@@ -368,7 +379,7 @@ def extract_candidate_features(
         settings,
     )
     timeline = reconstruct_timeline(
-        trigger, four_h, decision_time, oi, funding, settings
+        trigger, four_h, decision_time, oi, funding, settings, liquidity_candles
     )
     return FeatureSnapshot(
         decision_time=_as_utc(decision_time).to_pydatetime(),

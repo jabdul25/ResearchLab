@@ -422,10 +422,86 @@ class ResearchRepository:
                 ),
                 {"run_id": run_id},
             ).all()
+            exclusions = connection.execute(
+                text(
+                    """
+                    SELECT coalesce(c.liquidity_reason,'none') reason,c.symbol,
+                           c.interval_minutes,coalesce(f.regime,'missing') regime,count(*) count
+                    FROM breakout_candidates c
+                    LEFT JOIN candidate_features f ON f.candidate_id=c.id
+                    WHERE c.run_id=:run_id
+                      AND c.candidate_status='admitted' AND c.liquidity_eligible IS FALSE
+                    GROUP BY c.liquidity_reason,c.symbol,c.interval_minutes,f.regime
+                    """
+                ), {"run_id": run_id},
+            ).mappings().all()
         result = {key: int(value) for key, value in row.items()}
         result["pending"] = int(pending)
         result["outcomes"] = {item.classification: int(item.count) for item in outcomes}
+        result["exclusions"] = [dict(item) for item in exclusions]
+        with self.engine.connect() as connection:
+            incomplete = connection.execute(
+                text(
+                    "SELECT count(*) FROM breakout_candidates WHERE run_id=:run_id "
+                    "AND candidate_status='admitted' AND liquidity_reason='incomplete_liquidity_window'"
+                ), {"run_id": run_id},
+            ).scalar_one()
+        result["incomplete_liquidity"] = int(incomplete)
+        result["complete_liquidity"] = result["admitted"] - int(incomplete)
         return result
+
+    def audit_run(self, run_id: int, minimum_turnover: float) -> dict:
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT
+                      count(*) FILTER (WHERE f.feature_time IS DISTINCT FROM c.decision_time
+                        OR f.candle_input_max_time>c.decision_time
+                        OR f.oi_input_max_time>c.decision_time
+                        OR f.funding_input_max_time>c.decision_time) feature_violations,
+                      count(*) FILTER (WHERE o.window_start IS DISTINCT FROM c.decision_time
+                        OR o.window_end IS DISTINCT FROM c.decision_time
+                          + make_interval(mins => c.interval_minutes*12)
+                        OR o.observed_candles<>12) label_window_violations,
+                      count(*) FILTER (WHERE c.candidate_status='admitted'
+                        AND c.liquidity_eligible IS TRUE
+                        AND (c.liquidity_observed_bars<>96
+                          OR c.turnover_24h_before_event<:minimum)) liquidity_violations,
+                      count(*) FILTER (WHERE c.candidate_status='rejected_duplicate'
+                        AND c.duplicate_of_candidate_id IS NULL) duplicate_violations,
+                      count(*) FILTER (WHERE c.candidate_status='admitted'
+                        AND f.candidate_id IS NULL) missing_feature_violations
+                    FROM breakout_candidates c
+                    LEFT JOIN candidate_features f ON f.candidate_id=c.id
+                    LEFT JOIN candidate_outcomes o ON o.candidate_id=c.id
+                    WHERE c.run_id=:run_id
+                    """
+                ), {"run_id": run_id, "minimum": minimum_turnover},
+            ).mappings().one()
+            reproduction_violations = connection.execute(
+                text(
+                    """
+                    SELECT count(*) FROM breakout_candidates c
+                    JOIN LATERAL (
+                      SELECT count(*) bars,coalesce(sum(volume),0) volume,
+                             coalesce(sum(turnover),0) turnover
+                      FROM candles x WHERE x.symbol=c.symbol AND x.interval_minutes=15
+                        AND x.open_time < c.decision_time
+                        AND x.open_time >= c.decision_time - interval '24 hours'
+                    ) h ON true
+                    WHERE c.run_id=:run_id AND c.candidate_status='admitted'
+                      AND (h.bars IS DISTINCT FROM c.liquidity_observed_bars
+                        OR abs(h.volume-c.volume_24h_before_event)>0.000001
+                        OR abs(h.turnover-c.turnover_24h_before_event)>0.000001)
+                    """
+                ), {"run_id": run_id},
+            ).scalar_one()
+        row = dict(row)
+        row["liquidity_reproduction_violations"] = reproduction_violations
+        checks = {name: int(value) == 0 for name, value in row.items()}
+        return {"passed": all(checks.values()), "checks": checks,
+                "violation_counts": {name: int(value) for name, value in row.items()}}
 
     def database_identity(self) -> dict:
         with self.engine.connect() as connection:

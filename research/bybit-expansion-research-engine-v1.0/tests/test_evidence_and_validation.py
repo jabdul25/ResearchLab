@@ -107,6 +107,15 @@ class WalkForwardTests(unittest.TestCase):
         self.assertEqual(result["validation"]["definitions"], result["train"]["definitions"])
         self.assertEqual(result["train"]["definitions"]["signal"]["direction"], "higher")
 
+    def test_campaign_start_fixes_split_even_when_first_candidate_is_late(self):
+        result = walk_forward(
+            self.frame(), self.settings(),
+            campaign_start=pd.Timestamp("2025-01-01", tz="UTC"),
+            campaign_end=pd.Timestamp("2026-01-01", tz="UTC"),
+        )
+        self.assertEqual(result["window_start"], "2025-01-01T00:00:00+00:00")
+        self.assertEqual(result["window_end"], "2026-01-01T00:00:00+00:00")
+
     def test_small_split_is_insufficient_not_zero_lift(self):
         result = walk_forward(self.frame(), self.settings(minimum=20))
         self.assertEqual(result["validation"]["status"], "insufficient_sample")

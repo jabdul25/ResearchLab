@@ -49,7 +49,10 @@ def _evaluate(group: pd.DataFrame, definitions: dict, settings: Settings, months
     }
 
 
-def walk_forward(frame: pd.DataFrame, settings: Settings | None = None) -> dict:
+def walk_forward(
+    frame: pd.DataFrame, settings: Settings | None = None,
+    campaign_start=None, campaign_end=None,
+) -> dict:
     """Evaluate immutable train definitions over the first fixed 6/3/3 months."""
     settings = settings or Settings(database_url="postgresql://compatibility")
     if frame.empty:
@@ -67,10 +70,13 @@ def walk_forward(frame: pd.DataFrame, settings: Settings | None = None) -> dict:
             "classification",
         ] = "winner"
     data["decision_time"] = pd.to_datetime(data.decision_time, utc=True)
-    start = data.decision_time.min()
+    start = pd.Timestamp(campaign_start) if campaign_start is not None else data.decision_time.min()
+    start = start.tz_localize("UTC") if start.tzinfo is None else start.tz_convert("UTC")
     train_end = start + pd.DateOffset(months=6)
     validation_end = train_end + pd.DateOffset(months=3)
     test_end = validation_end + pd.DateOffset(months=3)
+    if campaign_end is not None and test_end > pd.Timestamp(campaign_end):
+        test_end = pd.Timestamp(campaign_end)
     data = data[(data.decision_time >= start) & (data.decision_time < test_end)]
     train = data[data.decision_time < train_end]
     validation = data[(data.decision_time >= train_end) & (data.decision_time < validation_end)]

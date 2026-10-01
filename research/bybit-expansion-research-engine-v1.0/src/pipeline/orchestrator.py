@@ -30,11 +30,18 @@ class ResearchOrchestrator:
             settings.minimum_turnover_24h,
             settings.history_months,
         )
+        self.campaign_start = None
+        self.campaign_end = None
+        self.collection_start = None
 
     def create_run(self, start: datetime, end: datetime) -> int:
         return self.repository.create_run(
             self.settings.as_manifest(), {"start": start, "end": end}
         )
+
+    def set_bounds(self, start: datetime, end: datetime) -> None:
+        self.campaign_start, self.campaign_end = start, end
+        self.collection_start = start - timedelta(days=30)
 
     def _candles(self, symbol: str, interval: int) -> pd.DataFrame:
         return pd.read_sql(
@@ -43,11 +50,14 @@ class ResearchOrchestrator:
                 SELECT open_time,open,high,low,close,volume,turnover
                 FROM candles
                 WHERE symbol=:symbol AND interval_minutes=:interval
+                  AND (:start IS NULL OR open_time>=:start)
+                  AND (:end IS NULL OR open_time<:end)
                 ORDER BY open_time
                 """
             ),
             self.engine,
-            params={"symbol": symbol, "interval": interval},
+            params={"symbol": symbol, "interval": interval,
+                    "start": self.collection_start, "end": self.campaign_end},
         )
 
     def _open_interest(self, symbol: str, interval: int) -> pd.DataFrame:
@@ -56,11 +66,14 @@ class ResearchOrchestrator:
                 """
                 SELECT observed_at,open_interest FROM open_interest
                 WHERE symbol=:symbol AND interval_minutes=:interval
+                  AND (:start IS NULL OR observed_at>=:start)
+                  AND (:end IS NULL OR observed_at<=:end)
                 ORDER BY observed_at
                 """
             ),
             self.engine,
-            params={"symbol": symbol, "interval": interval},
+            params={"symbol": symbol, "interval": interval,
+                    "start": self.collection_start, "end": self.campaign_end},
         )
 
     def _funding(self, symbol: str) -> pd.DataFrame:
@@ -68,26 +81,36 @@ class ResearchOrchestrator:
             text(
                 """
                 SELECT funding_time,funding_rate FROM funding_rates
-                WHERE symbol=:symbol ORDER BY funding_time
+                WHERE symbol=:symbol
+                  AND (:start IS NULL OR funding_time>=:start)
+                  AND (:end IS NULL OR funding_time<=:end)
+                ORDER BY funding_time
                 """
             ),
             self.engine,
-            params={"symbol": symbol},
+            params={"symbol": symbol, "start": self.collection_start, "end": self.campaign_end},
         )
 
     def collect(self) -> dict:
+        if self.campaign_start is None or self.campaign_end is None:
+            raise ValueError("campaign bounds must be set before collection")
         symbols = self.collector.refresh_universe()
+        if not symbols:
+            raise RuntimeError("refreshed Bybit universe is empty")
         totals = {
             "symbol_universe_count": len(symbols),
             "symbols_with_data": 0,
             "candles": 0,
             "oi": 0,
             "funding": 0,
-            "errors": 0,
+            "errors": 0, "symbols": symbols,
         }
         for number, symbol in enumerate(symbols, 1):
             try:
-                saved = self.collector.collect_symbol(symbol)
+                saved = self.collector.collect_symbol(
+                    symbol, requested_start=self.collection_start,
+                    requested_end=self.campaign_end,
+                )
                 totals["symbols_with_data"] += 1
                 for key in ("candles", "oi", "funding"):
                     totals[key] += saved[key]
@@ -96,6 +119,28 @@ class ResearchOrchestrator:
                 totals["errors"] += 1
                 LOG.exception("collection failed for %s; continuing", symbol)
         return totals
+
+    def audit_collection(self, symbols: list[str]) -> dict:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (symbol,interval_minutes)
+                           symbol,interval_minutes,status,expected_count,stored_count,gap_count
+                    FROM collection_jobs
+                    WHERE source='kline' AND symbol=ANY(:symbols)
+                      AND requested_start>=:start AND requested_end<=:end
+                    ORDER BY symbol,interval_minutes,requested_end DESC,requested_start DESC
+                    """
+                ),
+                {"symbols": symbols, "start": self.collection_start, "end": self.campaign_end},
+            ).mappings().all()
+        expected_jobs = len(symbols) * len(INTERVALS)
+        bad = [dict(row) for row in rows if row["status"] != "completed" or row["gap_count"] != 0]
+        return {
+            "passed": len(rows) == expected_jobs and not bad,
+            "expected_jobs": expected_jobs, "observed_jobs": len(rows), "bad_jobs": bad,
+        }
 
     def _symbols(self) -> list[str]:
         with self.engine.connect() as connection:
@@ -138,6 +183,11 @@ class ResearchOrchestrator:
                     signals = discover_breakout_candidates(
                         frame, symbol, interval, self.settings
                     )
+                    if self.campaign_start is not None:
+                        signals = [
+                            signal for signal in signals
+                            if self.campaign_start <= signal.decision_time <= self.campaign_end
+                        ]
                     records = []
                     for signal in signals:
                         snapshot = None
@@ -206,6 +256,7 @@ class ResearchOrchestrator:
                     self._open_interest(row["symbol"], row["interval_minutes"]),
                     self._funding(row["symbol"]),
                     self.settings,
+                    self._candles(row["symbol"], 15),
                 )
                 stats["processed"] += 1
                 stats["inserted"] += int(

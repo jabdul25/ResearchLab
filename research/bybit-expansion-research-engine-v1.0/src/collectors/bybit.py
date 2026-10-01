@@ -133,9 +133,7 @@ class BybitPublicClient:
             rows = _unique_in_bounds(raw, lambda row: row[0], start_ms, page_end)
             if not rows:
                 reason = "empty_page" if not raw else "no_rows_in_bounds"
-                yield MarketPage(
-                    (), complete=reason == "empty_page", stop_reason=reason
-                )
+                yield MarketPage((), complete=False, stop_reason=reason)
                 return
             earliest = int(rows[0][0])
             if earliest <= start_ms:
@@ -167,9 +165,7 @@ class BybitPublicClient:
             )
             if not rows:
                 reason = "empty_page" if not raw else "no_rows_in_bounds"
-                yield MarketPage(
-                    (), complete=reason == "empty_page", stop_reason=reason
-                )
+                yield MarketPage((), complete=False, stop_reason=reason)
                 return
             earliest = int(rows[0]["fundingRateTimestamp"])
             if earliest <= start_ms:
@@ -303,6 +299,12 @@ class DataCollector:
         )
         if prepared:
             with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE instruments SET status='NotTrading',eligible=false,updated_at=now() "
+                        "WHERE quote_asset='USDT' AND status='Trading'"
+                    )
+                )
                 connection.execute(statement, prepared)
         return [row["symbol"] for row in prepared]
 
@@ -318,10 +320,11 @@ class DataCollector:
         return datetime.fromtimestamp(value / 1000, UTC) if value is not None else None
 
     def collect_symbol(
-        self, symbol: str, include_derivatives: bool = True
+        self, symbol: str, include_derivatives: bool = True,
+        requested_start: datetime | None = None, requested_end: datetime | None = None,
     ) -> dict[str, int]:
-        now = datetime.now(UTC)
-        history_start = now - timedelta(days=round(self.history_months * 30.4375))
+        now = requested_end or datetime.now(UTC)
+        history_start = requested_start or now - timedelta(days=round(self.history_months * 30.4375))
         start = collection_start(history_start, self._launch_time(symbol))
         counts = {"candles": 0, "oi": 0, "funding": 0}
         for interval in INTERVALS:
@@ -354,6 +357,24 @@ class DataCollector:
                         self._next_end(page.next_end_ms),
                         page.complete,
                     )
+            step = interval * 60
+            first_epoch = ((int(start.timestamp()) + step - 1) // step) * step
+            last_epoch = int(end.timestamp())
+            expected = max(0, (last_epoch - first_epoch) // step + 1)
+            with self.engine.connect() as connection:
+                observed = connection.execute(
+                    text(
+                        "SELECT count(*) FROM candles WHERE symbol=:symbol "
+                        "AND interval_minutes=:interval AND open_time>=:first AND open_time<=:end"
+                    ),
+                    {
+                        "symbol": symbol, "interval": interval,
+                        "first": datetime.fromtimestamp(first_epoch, UTC), "end": end,
+                    },
+                ).scalar_one()
+            self.checkpoints.record_coverage(
+                checkpoint.id, expected, max(0, expected - int(observed))
+            )
             if include_derivatives:
                 counts["oi"] += self._collect_oi(symbol, interval, start, end)
         if include_derivatives:

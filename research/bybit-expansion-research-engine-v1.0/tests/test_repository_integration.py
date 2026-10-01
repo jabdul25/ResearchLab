@@ -47,7 +47,7 @@ def signal_at(index=0, status=CandidateStatus.ADMITTED, duplicate_of_key=None):
 def liquidity(signal, eligible=True, reason=None):
     return LiquiditySnapshot(
         decision_time=signal.decision_time,
-        volume_24h=1_000.0,
+        volume_24h=960.0,
         turnover_24h=600_000.0 if eligible else 100_000.0,
         expected_bars=96,
         observed_bars=96,
@@ -202,6 +202,46 @@ class RepositoryIntegrationTests(unittest.TestCase):
                     ),
                     {"id": candidate_id},
                 )
+
+    def test_feature_and_outcome_rows_are_immutable(self):
+        run_id = self.create_run()
+        candidate = signal_at(run_id * 2_000)
+        self.repository.upsert_candidates(run_id, [(candidate, liquidity(candidate))])
+        candidate_id = self.repository.candidate_id(run_id, candidate.key)
+        self.repository.upsert_feature_snapshot(candidate_id, feature(candidate))
+        self.repository.upsert_outcome(candidate_id, outcome(candidate))
+        for statement in (
+            "UPDATE candidate_features SET regime='range' WHERE candidate_id=:id",
+            "UPDATE candidate_outcomes SET classification='failed_breakout' WHERE candidate_id=:id",
+        ):
+            with self.assertRaises(DBAPIError):
+                with self.engine.begin() as connection:
+                    connection.execute(text(statement), {"id": candidate_id})
+
+    def test_run_audit_uses_persisted_timestamps_and_windows(self):
+        run_id = self.create_run()
+        candidate = signal_at(run_id * 3_000)
+        self.repository.upsert_candidates(run_id, [(candidate, liquidity(candidate))])
+        candidate_id = self.repository.candidate_id(run_id, candidate.key)
+        self.repository.upsert_feature_snapshot(candidate_id, feature(candidate))
+        self.repository.upsert_outcome(candidate_id, outcome(candidate))
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO candles(symbol,interval_minutes,open_time,open,high,low,close,volume,turnover)
+                    VALUES ('ALTUSDT',15,:open_time,100,101,99,100,10,6250)
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                [
+                    {"open_time": candidate.decision_time - timedelta(minutes=15 * offset)}
+                    for offset in range(96, 0, -1)
+                ],
+            )
+        audit = self.repository.audit_run(run_id, 500_000)
+        self.assertTrue(audit["passed"])
+        self.assertTrue(all(audit["checks"].values()))
 
     def test_manifest_and_null_futures_values_round_trip(self):
         run_id = self.create_run()

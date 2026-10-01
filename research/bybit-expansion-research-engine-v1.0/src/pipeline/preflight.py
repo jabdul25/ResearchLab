@@ -244,6 +244,7 @@ def verify_database(engine, settings: Settings) -> dict:
         "research_run_snapshots_immutable", "preflight_results_immutable",
         "breakout_candidates_immutable", "breakout_candidates_valid_insert",
         "candidate_features_admitted_only", "candidate_outcomes_admitted_only",
+        "candidate_features_immutable", "candidate_outcomes_immutable",
     }
     with engine.connect() as connection:
         triggers = set(
@@ -350,28 +351,64 @@ def launch_campaign(engine, settings: Settings, project_root: Path, preflight_id
 
 
 def _run_full_campaign(orchestrator: ResearchOrchestrator, run_id: int, bounds: dict, provenance: dict) -> dict:
-    stages = {
-        "collection": orchestrator.collect(),
-        "candidates": orchestrator.detect_candidates(run_id),
-        "features": orchestrator.snapshot_features(run_id),
-        "outcomes": orchestrator.label_outcomes(run_id),
-    }
+    orchestrator.set_bounds(bounds["start"], bounds["end"])
+    collection = orchestrator.collect()
+    coverage = orchestrator.audit_collection(collection["symbols"])
+    if collection["errors"] or not coverage["passed"]:
+        raise RuntimeError(f"collection did not pass completeness gate: {coverage}")
+    stages = {"collection": collection, "coverage": coverage}
+    for name, operation in (
+        ("candidates", lambda: orchestrator.detect_candidates(run_id, collection["symbols"])),
+        ("features", lambda: orchestrator.snapshot_features(run_id)),
+        ("outcomes", lambda: orchestrator.label_outcomes(run_id)),
+    ):
+        stages[name] = operation()
+        if stages[name].get("errors"):
+            raise RuntimeError(f"{name} stage failed closed: {stages[name]}")
     analysis = orchestrator.analyse(run_id)
     frame, funnel = analysis["population"], analysis["funnel"]
     evidence = compare_matched_candidates(frame)
     population = candidate_population(frame, funnel)
-    validation = walk_forward(frame, orchestrator.settings)
+    validation = walk_forward(
+        frame, orchestrator.settings, bounds["start"], bounds["end"]
+    )
     regimes = {str(name): compare_matched_candidates(group) for name, group in frame.groupby("regime", dropna=False)}
+    timeframes = {
+        str(name): compare_matched_candidates(group)
+        for name, group in frame.groupby("interval_minutes", dropna=False)
+    }
     horizons = ("T-72h", "T-48h", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h")
     timeline_coverage = {
-        horizon: {"available": int(frame.timeline.map(lambda value: horizon in (value or {})).sum()), "total": len(frame)}
+        horizon: {
+            "available": int(
+                frame.timeline.map(
+                    lambda value: bool((value or {}).get(horizon, {}).get("features"))
+                ).sum()
+            ), "total": len(frame)
+        }
         for horizon in horizons
+    }
+    leakage = orchestrator.repository.audit_run(
+        run_id, orchestrator.settings.minimum_turnover_24h
+    )
+    leakage["collection_coverage"] = coverage
+    leakage["status"] = "PASS" if leakage["passed"] and coverage["passed"] else "FAIL"
+    if leakage["status"] != "PASS":
+        raise RuntimeError(f"run leakage audit failed: {leakage}")
+    winners = frame[frame.classification == "winner"]
+    expansion_summary = {
+        "average_mfe": float(winners.mfe.mean()) if len(winners) else None,
+        "major_expansions": int((winners.mfe >= 0.50).sum()) if len(winners) else 0,
+        "large_expansions": int(((winners.mfe >= 0.25) & (winners.mfe < 0.50)).sum()) if len(winners) else 0,
     }
     payload = {
         "manifest": orchestrator.settings.as_manifest(), "provenance": {"run_id": run_id, **provenance},
+        "symbol_universe": collection["symbols"],
         "population": population, "evidence": evidence, "timeline_coverage": timeline_coverage,
-        "regimes": regimes, "validation": validation,
-        "leakage": {"status": "PASS", "point_in_time_liquidity": "PASS", "decision_time_features": "PASS", "future_only_labels": "PASS"},
+        "regimes": regimes, "timeframes": timeframes,
+        "validation": validation, "leakage": leakage,
+        "campaign_bounds": {"start": bounds["start"], "end": bounds["end"]},
+        "expansion_summary": expansion_summary,
         "validated_market_state": ValidatedMarketState.from_validation(validation).as_dict(),
     }
     write_reports(

@@ -202,3 +202,18 @@ class CollectionCheckpointStore:
                 ),
                 {"job_id": job_id, "error": str(error)},
             )
+
+    def record_coverage(self, job_id: int, expected_count: int, gap_count: int) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    UPDATE collection_jobs
+                    SET expected_count=:expected,gap_count=:gaps,
+                        status=CASE WHEN :gaps=0 THEN 'completed' ELSE 'incomplete' END,
+                        updated_at=now()
+                    WHERE id=:job_id
+                    """
+                ),
+                {"job_id": job_id, "expected": expected_count, "gaps": gap_count},
+            )

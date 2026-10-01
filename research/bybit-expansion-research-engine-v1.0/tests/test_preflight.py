@@ -85,7 +85,7 @@ class PreflightTests(unittest.TestCase):
     def test_database_verification_reports_provenance_and_constraints(self):
         result = verify_database(self.engine, self.settings)
         self.assertTrue(result["passed"])
-        self.assertEqual(result["schema_version"], "003_preflight_gate")
+        self.assertEqual(result["schema_version"], "004_immutable_research_rows")
         self.assertTrue(result["migration_checksums_verified"])
         self.assertTrue(result["required_constraints_verified"])
 
