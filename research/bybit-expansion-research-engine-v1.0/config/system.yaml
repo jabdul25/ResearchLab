@@ -1,0 +1,25 @@
+market:
+  exchange: bybit
+  category: linear
+  quote: USDT
+
+filters:
+  min_turnover_24h: 500000
+
+timeframes:
+  context:
+    - 240
+    - 60
+  trigger:
+    - 15
+
+validation:
+  walk_forward: true
+
+collection:
+  history_months: 12
+  request_pause_seconds: 0.08
+  request_retries: 5
+
+reports:
+  directory: reports
