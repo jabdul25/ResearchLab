@@ -1,6 +1,8 @@
 from __future__ import annotations
 import pandas as pd
 
+from src.analysis.candidates import admit_candidates, detect_breakout_signals
+
 EXPANSION_THRESHOLDS = {15: .08, 60: .15, 240: .25}
 
 def discover_events(frame: pd.DataFrame, interval: int) -> list[dict]:
@@ -30,3 +32,13 @@ def discover_events(frame: pd.DataFrame, interval: int) -> list[dict]:
             i += 1
         else: i += 1
     return rows
+
+
+def discover_breakout_candidates(frame, symbol, interval, settings):
+    """Candidate-first discovery used by the research pipeline.
+
+    ``discover_events`` remains only as a compatibility facade for the
+    inherited release-candidate tests; new orchestration must use this function.
+    """
+    raw = detect_breakout_signals(frame, symbol, interval, settings)
+    return admit_candidates(raw, settings.outcome_window_candles)
