@@ -22,7 +22,7 @@ class AnalysisTests(unittest.TestCase):
         events = discover_events(data, 15)
         self.assertTrue(any(e["event_kind"] == "expansion" and e["percentage_move"] >= .08 for e in events))
 
-    def test_features_are_causal_and_include_required_groups(self):
+    def test_features_are_point_in_time_and_include_required_groups(self):
         # Match the same absolute period: four 15m bars occur in each hour.
         trigger, four_h = candles(220 * 16), candles(220, "4h")
         values, timeline, regime = extract_features(trigger, four_h, trigger.open_time.iloc[-1])
@@ -32,7 +32,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertIn("momentum_repair_score", values)
         self.assertIn("volume_ratio", values)
         self.assertIn("T-72h", timeline)
-        self.assertIn(regime, {"trending", "range", "high_volatility", "unknown"})
+        self.assertIn(regime, {"bullish_trend", "bearish_trend", "range", "high_volatility", "unknown"})
 
     def test_walk_forward_is_chronological(self):
         dates = pd.date_range("2025-01-01", periods=60, freq="7D", tz="UTC")
