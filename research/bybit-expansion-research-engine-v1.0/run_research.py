@@ -1,15 +1,50 @@
 #!/usr/bin/env python3
-"""Run public-market expansion research. It never submits orders."""
-import argparse, json, logging
-from src.config import Settings
-from src.db import engine_for, initialize
-from src.pipeline.orchestrator import ResearchOrchestrator
+"""Explicitly preflight or run public-market expansion research; never trade."""
+from __future__ import annotations
 
-def main():
-    parser=argparse.ArgumentParser(description="Bybit expansion evidence research (no trading)")
-    parser.add_argument("--config",default="config/system.yaml")
-    parser.add_argument("--skip-collection",action="store_true",help="analyse data already in PostgreSQL")
-    args=parser.parse_args(); logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    settings=Settings.load(args.config); engine=engine_for(settings.database_url); initialize(engine)
-    print(json.dumps(ResearchOrchestrator(engine,settings).run(collect=not args.skip_collection),indent=2))
-if __name__ == "__main__": main()
+import argparse
+import json
+import logging
+from pathlib import Path
+
+from src.config import Settings
+from src.db import engine_for
+from src.pipeline.preflight import launch_campaign, run_preflight
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Bybit expansion evidence research (no trading)")
+    parser.add_argument("--config", default="config/system.yaml")
+    subcommands = parser.add_subparsers(dest="command")
+    subcommands.add_parser("preflight", help="verify architecture and write preflight evidence only")
+    campaign = subcommands.add_parser("campaign", help="run after reviewing a matching passing preflight")
+    campaign.add_argument("--preflight-id", required=True, type=int)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help()
+        return 0
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    settings = Settings.load(args.config)
+    engine = engine_for(settings.database_url)
+    try:
+        if args.command == "preflight":
+            result = run_preflight(engine, settings, PROJECT_ROOT)
+            print(json.dumps(result.payload, indent=2, sort_keys=True))
+            return 0 if result.passed else 1
+        result = launch_campaign(engine, settings, PROJECT_ROOT, args.preflight_id)
+        print(json.dumps(result, indent=2, sort_keys=True, default=str))
+        return 0
+    finally:
+        engine.dispose()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

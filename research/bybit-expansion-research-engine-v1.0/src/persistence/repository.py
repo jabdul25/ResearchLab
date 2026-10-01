@@ -68,6 +68,28 @@ class ResearchRepository:
                 },
             ).scalar_one()
 
+    def finish_run(self, run_id: int, status: str, summary: dict) -> None:
+        if status not in {"completed", "failed"}:
+            raise ValueError("terminal run status must be completed or failed")
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE research_runs SET status=:status,completed_at=now(),"
+                    "summary=CAST(:summary AS jsonb) WHERE id=:run_id"
+                ),
+                {"run_id": run_id, "status": status, "summary": _json(summary)},
+            )
+
+    def store_artifact(self, run_id: int, name: str, payload: dict) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO research_artifacts(run_id,artifact_name,payload) "
+                    "VALUES (:run_id,:name,CAST(:payload AS jsonb))"
+                ),
+                {"run_id": run_id, "name": name, "payload": _json(payload)},
+            )
+
     def append_run_snapshot(
         self,
         run_id: int,
