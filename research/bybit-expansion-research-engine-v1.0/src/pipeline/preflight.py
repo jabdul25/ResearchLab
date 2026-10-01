@@ -232,7 +232,47 @@ def _current_gate_state(engine, settings: Settings, project_root: Path) -> dict:
     }
 
 
-def launch_campaign(engine, settings: Settings, project_root: Path, preflight_id: int | None, campaign_runner: Callable | None = None) -> dict:
+def verify_database(engine, settings: Settings) -> dict:
+    """Read-only verification of database identity, migrations, and safety triggers."""
+    repository = ResearchRepository(engine)
+    tables = set(inspect(engine).get_table_names())
+    missing_tables = sorted(REQUIRED_TABLES - tables)
+    schema = read_schema_provenance(engine) if "schema_migrations" in tables else None
+    recorded = dict(schema.checksums) if schema else {}
+    expected = _expected_schema_checksums()
+    required_triggers = {
+        "research_run_snapshots_immutable", "preflight_results_immutable",
+        "breakout_candidates_immutable", "breakout_candidates_valid_insert",
+        "candidate_features_admitted_only", "candidate_outcomes_admitted_only",
+    }
+    with engine.connect() as connection:
+        triggers = set(
+            connection.execute(
+                text(
+                    "SELECT tgname FROM pg_trigger "
+                    "WHERE NOT tgisinternal AND tgname = ANY(:names)"
+                ),
+                {"names": list(required_triggers)},
+            ).scalars()
+        )
+    missing_triggers = sorted(required_triggers - triggers)
+    passed = not missing_tables and recorded == expected and not missing_triggers
+    return {
+        "passed": passed,
+        "database_identity": repository.database_identity(),
+        "configuration_hash": settings.configuration_hash(),
+        "schema_version": schema.schema_version if schema else None,
+        "schema_checksums": recorded,
+        "expected_schema_checksums": expected,
+        "migration_checksums_verified": recorded == expected,
+        "required_tables_verified": not missing_tables,
+        "missing_tables": missing_tables,
+        "required_constraints_verified": not missing_triggers,
+        "missing_safety_triggers": missing_triggers,
+    }
+
+
+def _require_matching_preflight(engine, settings: Settings, project_root: Path, preflight_id: int | None):
     if preflight_id is None:
         raise PreflightRequired("a passing preflight ID is required")
     with engine.connect() as connection:
@@ -245,6 +285,28 @@ def launch_campaign(engine, settings: Settings, project_root: Path, preflight_id
     for field in ("configuration_hash", "schema_checksums", "code_revision_state", "database_identity"):
         if current[field] != row[field]:
             raise PreflightRequired(f"preflight is stale: {field} changed")
+    return row, current
+
+
+def check_campaign_gate(engine, settings: Settings, project_root: Path, preflight_id: int | None) -> dict:
+    """Check a preflight without creating a run or starting collection."""
+    row, _current = _require_matching_preflight(engine, settings, project_root, preflight_id)
+    with engine.connect() as connection:
+        counts = {
+            "research_runs": connection.execute(text("SELECT count(*) FROM research_runs")).scalar_one(),
+            "collection_jobs": connection.execute(text("SELECT count(*) FROM collection_jobs")).scalar_one(),
+            "breakout_candidates": connection.execute(text("SELECT count(*) FROM breakout_candidates")).scalar_one(),
+        }
+    return {
+        "status": "ready", "preflight_id": preflight_id,
+        "campaign_start": row["campaign_start"].isoformat(),
+        "campaign_end": row["campaign_end"].isoformat(),
+        "counts_unchanged": counts,
+    }
+
+
+def launch_campaign(engine, settings: Settings, project_root: Path, preflight_id: int | None, campaign_runner: Callable | None = None) -> dict:
+    row, current = _require_matching_preflight(engine, settings, project_root, preflight_id)
 
     bounds = {"start": row["campaign_start"], "end": row["campaign_end"]}
     repository = ResearchRepository(engine)

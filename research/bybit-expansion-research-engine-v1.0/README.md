@@ -35,6 +35,8 @@ tests. It does not collect market data.
 Review the preflight evidence before explicitly starting a campaign:
 
 ```bash
+python run_research.py preflight --verify-database
+python run_research.py campaign --preflight-id ID --check-only
 python run_research.py campaign --preflight-id ID
 ```
 

@@ -12,8 +12,14 @@ from sqlalchemy import text
 
 from src.config import Settings
 from src.db import engine_for, initialize
-from src.pipeline.preflight import PreflightRequired, launch_campaign, run_preflight
-from run_research import main
+from src.pipeline.preflight import (
+    PreflightRequired,
+    check_campaign_gate,
+    launch_campaign,
+    run_preflight,
+    verify_database,
+)
+from run_research import build_parser, main
 
 
 TEST_DATABASE_URL = os.getenv(
@@ -71,6 +77,18 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("{preflight,campaign}", output.getvalue())
 
+    def test_cli_exposes_read_only_database_and_gate_checks(self):
+        parser = build_parser()
+        self.assertTrue(parser.parse_args(["preflight", "--verify-database"]).verify_database)
+        self.assertTrue(parser.parse_args(["campaign", "--preflight-id", "1", "--check-only"]).check_only)
+
+    def test_database_verification_reports_provenance_and_constraints(self):
+        result = verify_database(self.engine, self.settings)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["schema_version"], "003_preflight_gate")
+        self.assertTrue(result["migration_checksums_verified"])
+        self.assertTrue(result["required_constraints_verified"])
+
     def test_preflight_fails_on_schema_checksum_mismatch(self):
         with self.engine.begin() as connection:
             original = connection.execute(
@@ -114,6 +132,16 @@ class PreflightTests(unittest.TestCase):
         changed = self.settings.with_overrides(structure_lookback=30)
         with self.assertRaises(PreflightRequired):
             launch_campaign(self.engine, changed, PROJECT_ROOT, result.preflight_id, lambda *_: {})
+
+    def test_gate_check_is_read_only(self):
+        result = run_preflight(self.engine, self.settings, PROJECT_ROOT, self.probes)
+        with self.engine.connect() as connection:
+            before = connection.execute(text("SELECT count(*) FROM research_runs")).scalar_one()
+        gate = check_campaign_gate(self.engine, self.settings, PROJECT_ROOT, result.preflight_id)
+        with self.engine.connect() as connection:
+            after = connection.execute(text("SELECT count(*) FROM research_runs")).scalar_one()
+        self.assertEqual(gate["status"], "ready")
+        self.assertEqual(before, after)
 
     def test_campaign_always_writes_started_and_terminal_snapshot(self):
         result = run_preflight(self.engine, self.settings, PROJECT_ROOT, self.probes)
