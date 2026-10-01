@@ -89,9 +89,13 @@ class SchemaTests(unittest.TestCase):
     def test_schema_provenance_contains_applied_checksum(self):
         provenance = read_schema_provenance(self.engine)
 
-        self.assertEqual(provenance.schema_version, "001_candidate_first")
-        self.assertEqual(set(provenance.checksums), {"001_candidate_first"})
+        self.assertEqual(provenance.schema_version, "002_candidate_invariants")
+        self.assertEqual(
+            set(provenance.checksums),
+            {"001_candidate_first", "002_candidate_invariants"},
+        )
         self.assertEqual(len(provenance.checksums["001_candidate_first"]), 64)
+        self.assertEqual(len(provenance.checksums["002_candidate_invariants"]), 64)
 
     def test_changed_recorded_migration_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

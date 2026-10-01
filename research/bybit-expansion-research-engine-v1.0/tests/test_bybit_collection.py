@@ -169,7 +169,10 @@ class DatabaseCollectionTests(unittest.TestCase):
         self.assertEqual(set(symbols), {"HIGHUSDT", "LOWUSDT"})
         with self.engine.connect() as connection:
             eligible = connection.execute(
-                text("SELECT symbol,eligible FROM instruments ORDER BY symbol")
+                text(
+                    "SELECT symbol,eligible FROM instruments "
+                    "WHERE symbol IN ('HIGHUSDT','LOWUSDT') ORDER BY symbol"
+                )
             ).all()
         self.assertEqual(eligible, [("HIGHUSDT", True), ("LOWUSDT", True)])
 
